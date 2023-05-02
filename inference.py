@@ -202,7 +202,8 @@ def attribute_edit(generator, data):
 
     inv_data = inference_util.hfgi_inversion(generator, source_image, args=args, batch_size=bs)
     source_image = source_image.repeat(bs, 1, 1, 1)
-
+    num_batch = len(data['target_semantics']) // bs + 1
+    
     num_batch = len(data['target_image']) // bs + 1
     gt_images, video_warp_images, audio_warp_images, fake_images = [], [], [], []
     source_3dmm = data['source_semantics'].unsqueeze(-1).repeat(1, 1, 27)  # 1, 73, 27
@@ -223,13 +224,9 @@ def attribute_edit(generator, data):
             inv_data = ix, wx, fx, inversion_condition
             source_3dmm = source_3dmm[:_len_3dmm]
 
-        with torch.no_grad():
-            if args.edit_expression_only:
-                target_3dmm[:, 64:, :] = source_3dmm[:, 64:, :]
-            output = generator.forward(source_image, target_3dmm, inv_data=inv_data, imsize=1024)
 
         ix_edit, wx_edit, fx_edit, inversion_condition = generator. \
-            generator.edit(x=None, factor=factor / num_batch * (_i + 1), choice=args.attribute, wx=per_wx, res=per_res)
+            generator.edit(x=None, factor=3.8, choice=args.attribute, wx=per_wx, res=per_res)
         inv_data = [
             ix_edit.expand(bs, 3, 256, 256),
             wx_edit.expand(bs, 18, 512),
@@ -237,6 +234,10 @@ def attribute_edit(generator, data):
             (inversion_condition[0].expand(bs, 512, 64, 64),
              inversion_condition[1].expand(bs, 512, 64, 64))
         ]
+        with torch.no_grad():
+            if args.edit_expression_only:
+                target_3dmm[:, 64:, :] = source_3dmm[:, 64:, :]
+            output = generator.forward(source_image, target_3dmm, inv_data=inv_data, imsize=1024)
 
         gt_images.append(target_images)
         fake_images.append(output['fake_image'].cpu().clamp_(-1, 1))
